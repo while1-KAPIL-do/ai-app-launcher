@@ -16,70 +16,52 @@
                 rounded-full animate-spin mx-auto mb-8"></div>
 
     <h1 class="text-2xl font-bold mb-2" id="title">Starting server...</h1>
-    <p class="text-slate-400 mb-6">
-        This app runs on a sleeping server.<br>
-        It will wake up in ~60 seconds.
+
+    <p class="text-slate-400 mb-6" id="subtitle">
+        Waking up your server... usually takes ~30-60 seconds
     </p>
 
-    <div class="text-5xl font-mono font-bold text-cyan-400 mb-6"
-         id="countdown">60</div>
+    <div class="text-2xl font-mono text-cyan-400 mb-6"
+         id="status">Initializing...</div>
 
     <div class="w-full bg-slate-800 rounded-full h-2 mb-8">
         <div id="progress"
-             class="bg-cyan-400 h-2 rounded-full transition-all duration-1000"
-             style="width: 0%"></div>
+             class="bg-cyan-400 h-2 rounded-full transition-all duration-300"
+             style="width: 5%"></div>
     </div>
 
-    <p class="text-xs text-slate-500" id="statusText">Connecting...</p>
+    <p class="text-xs text-slate-500" id="statusText">Connecting to server...</p>
 </div>
 
 <script>
 const LAMBDA_URL = 'https://faj3rnm9e5.execute-api.ap-south-1.amazonaws.com/start-ec2';
+const SERVER_URL = 'http://13.126.63.96';
+const HEALTH_URL = SERVER_URL + '/health';
+const APP_URL = SERVER_URL + '/ai/sql-assitance';
 
-// ⚠️ IMPORTANT: Use HTTPS domain (NOT IP ideally)
-const APP_URL = 'http://13.126.63.96/ai/sql-assitance';
+let progress = 5;
 
-let secondsLeft = 60;
-
+// 🔹 Start EC2 once
 async function startServer() {
     try {
         const res = await fetch(LAMBDA_URL);
         const data = await res.json();
 
         document.getElementById('statusText').textContent =
-            `Server: ${data.status}`;
+            `EC2 Status: ${data.status}`;
 
-        if (data.status === 'running') {
-            redirect();
-        } else {
-            startCountdown(60);
-        }
+        // Immediately start checking server
+        checkServer();
 
     } catch (e) {
         document.getElementById('statusText').textContent =
-            'Lambda error (check CORS)';
+            'Error starting server (check CORS)';
     }
 }
 
-function startCountdown(time) {
-    secondsLeft = time;
-
-    const interval = setInterval(() => {
-        secondsLeft--;
-
-        document.getElementById('countdown').textContent = secondsLeft;
-        document.getElementById('progress').style.width =
-            ((60 - secondsLeft) / 60) * 100 + '%';
-
-        if (secondsLeft <= 0) {
-            clearInterval(interval);
-            checkServer();
-        }
-    }, 1000);
-}
-
+// 🔹 Poll server every 2 sec
 async function checkServer() {
-    document.getElementById('title').textContent = 'Checking server...';
+    document.getElementById('title').textContent = 'Preparing your app...';
 
     let tries = 0;
 
@@ -87,36 +69,47 @@ async function checkServer() {
         tries++;
 
         try {
-            const res = await fetch(LAMBDA_URL);
-            const data = await res.json();
+            const res = await fetch(HEALTH_URL, { cache: "no-store" });
 
-            document.getElementById('statusText').textContent =
-                `Try ${tries}: ${data.status}`;
-
-            if (data.status === 'running') {
+            if (res.ok) {
                 clearInterval(poll);
                 redirect();
+                return;
             }
 
-        } catch {}
+        } catch (err) {
+            // server not ready yet
+        }
 
-        if (tries > 10) {
+        // Update UI
+        progress = Math.min(progress + 2, 95);
+        document.getElementById('progress').style.width = progress + '%';
+        document.getElementById('status').textContent = `Checking... (${tries})`;
+        document.getElementById('statusText').textContent =
+            'Server booting... please wait';
+
+        // fallback after too many tries (~2 min)
+        if (tries > 60) {
             clearInterval(poll);
             document.getElementById('statusText').innerHTML =
                 `<a href="${APP_URL}" class="underline text-cyan-400">Open manually</a>`;
         }
 
-    }, 5000);
+    }, 2000);
 }
 
+// 🔹 Redirect instantly when ready
 function redirect() {
     document.getElementById('title').textContent = 'Ready 🚀';
+    document.getElementById('status').textContent = 'Launching...';
+    document.getElementById('progress').style.width = '100%';
 
     setTimeout(() => {
         window.location.href = APP_URL;
-    }, 1500);
+    }, 800);
 }
 
+// Start flow
 startServer();
 </script>
 
