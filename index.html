@@ -111,8 +111,12 @@ async function checkServer() {
                 `Try ${tries}: ${data.status}`;
 
             if (data.status === 'running') {
-                clearInterval(poll);
-                redirect();
+                clearInterval(pollInterval);
+                clearInterval(tickInterval);
+
+                // 5-second buffer for service to fully start
+                document.getElementById('statusText').textContent = 'Service starting, redirecting in 5s...';
+                setTimeout(redirect, 5000);
             }
 
         } catch {}
