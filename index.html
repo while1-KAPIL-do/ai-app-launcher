@@ -62,10 +62,12 @@ function pollHealth(label) {
         document.getElementById('statusText').textContent =
             `${label} (attempt ${attempt})...`;
         try {
-            await fetch(HEALTH_URL, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
-            // no-cors fetch resolves (doesn't throw) = server is reachable ✅
-            clearInterval(poll);
-            redirect();
+            const res = await fetch(HEALTH_URL, { cache: 'no-store' }); // no mode:'no-cors'
+            const data = await res.json();
+            if (res.ok && data.status === 'ok') {  // res.ok = true only on 200, not 503
+                clearInterval(poll);
+                redirect();
+            }
         } catch {
             // fetch threw = server still not reachable, keep polling
         }
