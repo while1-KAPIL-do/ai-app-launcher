@@ -64,7 +64,23 @@ async function startServer() {
 function startCountdown(time) {
     secondsLeft = time;
 
-    const interval = setInterval(() => {
+    // Poll every 2 seconds during countdown — redirect as soon as server is up
+    const pollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(LAMBDA_URL);
+            const data = await res.json();
+            document.getElementById('statusText').textContent =
+                `Checking... ${data.status}`;
+            if (data.status === 'running') {
+                clearInterval(pollInterval);
+                clearInterval(tickInterval);
+                redirect();
+            }
+        } catch {}
+    }, 2000);
+
+    // Visual countdown tick (purely cosmetic)
+    const tickInterval = setInterval(() => {
         secondsLeft--;
 
         document.getElementById('countdown').textContent = secondsLeft;
@@ -72,8 +88,9 @@ function startCountdown(time) {
             ((60 - secondsLeft) / 60) * 100 + '%';
 
         if (secondsLeft <= 0) {
-            clearInterval(interval);
-            checkServer();
+            clearInterval(tickInterval);
+            clearInterval(pollInterval);
+            checkServer(); // fallback if still not up after 60s
         }
     }, 1000);
 }
